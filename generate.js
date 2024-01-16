@@ -1,9 +1,7 @@
 // usage: node generate.js <number of rows to generate>
 
 import { argv } from "process";
-import { readFileSync, writeFileSync } from "fs";
-
-const tick = performance.now();
+import { readFileSync, createWriteStream } from "fs";
 
 const COUNT = Number(argv[2].replace(/_/g, "")) || 1000;
 const SEPERATOR = ":";
@@ -11,6 +9,9 @@ const TEMP = {
      MIN: -50,
      MAX: 100
 };
+const CHUNK_LIMIT = 1_000_000;
+
+const tick = performance.now();
 
 // read file
 console.time("Reading file");
@@ -19,28 +20,40 @@ const rowData = readFileSync("./data/weather_stations.txt", { encoding: "utf-8" 
      .map((string) => string.split(SEPERATOR));
 console.timeEnd("Reading file");
 
-const FINAL_DATA = [];
+let FINAL_DATA = [];
 
-console.time("Creating data");
+const writeStream = createWriteStream(`./data/${argv[2]}.txt`, { flags: "a" });
+
+console.time("Creating and writing data");
+
 for (let i = 1; i <= COUNT; i++) {
      const randomIndex = getRandomInt(0, rowData.length - 1);
      const randomTemp = getRandomFloat(TEMP.MIN, TEMP.MAX);
-     try {
-          FINAL_DATA.push(`${rowData[randomIndex][0]}${SEPERATOR}${randomTemp}`);
-     } catch (error) {
-          console.error(randomIndex, error);
-          process.exit(1);
+     FINAL_DATA.push(`${rowData[randomIndex][0]}${SEPERATOR}${randomTemp}`);
+
+     if (i % CHUNK_LIMIT === 0 || i === COUNT) {
+          const chunk = i % 1_000_000 === 0 ? i / 1_000_000 : "Final";
+
+          console.time(`Chunk ${chunk}`);
+          await write(writeStream, FINAL_DATA.join("\n") + "\n");
+          console.timeEnd(`Chunk ${chunk}`);
+
+          FINAL_DATA = [];
      }
 }
-console.timeEnd("Creating data");
+console.timeEnd("Creating and writing data");
 
-console.time(`Writing ${COUNT} records to file`);
-writeFileSync(`./data/${argv[2]}.txt`, FINAL_DATA.join("\n"));
-console.timeEnd(`Writing ${COUNT} records to file`);
+writeStream.end();
 
 const tock = performance.now();
 
 console.log(`DONE in ${(tock - tick) / 1000} seconds.`);
+
+async function write(stream, data) {
+     return new Promise((resolve, reject) => {
+          stream.write(data, () => resolve());
+     });
+}
 
 function getRandomInt(min, max) {
      min = Math.ceil(min);
@@ -48,5 +61,5 @@ function getRandomInt(min, max) {
      return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 function getRandomFloat(min, max) {
-     return Math.random() * (max - min + 1) + min;
+     return (Math.random() * (max - min + 1) + min).toFixed(2);
 }
