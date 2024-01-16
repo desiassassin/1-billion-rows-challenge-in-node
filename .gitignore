@@ -1,0 +1,3 @@
+# ignore all `txt` files except for the weather_stations.txt
+data/*.txt
+!data/weather_stations.txt
