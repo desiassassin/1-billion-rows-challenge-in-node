@@ -19,16 +19,20 @@ console.time("");
 // ugly but performant solution
 stream.on("data", (data) => {
      // append any leftover to data
-     if (leftover.length) data = leftover + data;
-     const lines = data.split("\n");
-     // put the last line into the leftover string
-     leftover = lines[lines.length - 1];
-     // remove the last line from the array
-     lines.length = lines.length - 1;
-     // parse the remaining lines into an array of weather stations and weather temperature
-     for (let i = 0; i < lines.length; i++) {
-          const [stationName, tempratureValue] = lines[i].split(":");
-          const temperature = Number(tempratureValue);
+     if (leftover) data = leftover + data;
+
+     let newLineIndex = data.indexOf("\n");
+
+     while (newLineIndex > -1) {
+          const nextNewLineIndex = data.indexOf("\n", newLineIndex + 1);
+
+          const line = data.slice(newLineIndex + 1, nextNewLineIndex);
+
+          // do the line parsing. indexOf is twice as fast than string.split()
+          const colonIndex = line.indexOf(":");
+          const stationName = line.slice(0, colonIndex);
+          const temperature = Number(line.slice(colonIndex + 1));
+
           const station = WEATHER_STATIONS[stationName];
           if (!station) {
                WEATHER_STATIONS[stationName] = {
@@ -39,17 +43,20 @@ stream.on("data", (data) => {
                };
                continue;
           }
-          // check for min temp
-          if (station.min > temperature) {
-               station.min = temperature;
-          }
-          // check for max temp
-          if (station.max < temperature) {
-               station.max = temperature;
-          }
-          // update total and count
+          // update min max temp, total and count
+          station.min = station.min > temperature ? temperature : station.min;
+          station.max = station.max < temperature ? temperature : station.max;
           station.total = station.total + temperature;
-          station.count = station.count + 1;
+          station.count++;
+
+          // this was the final incomplete line, so store it in the leftover and break out of the loop
+          if (newLineIndex === -1) {
+               leftover = line;
+               return;
+          }
+
+          // assign the next index of "\n" as the current index to get the next line in the next iteration
+          newLineIndex = nextNewLineIndex;
      }
 });
 
