@@ -1,4 +1,6 @@
+import EventEmitter from "events";
 import { createReadStream, existsSync } from "fs";
+import { spawn, Worker } from "threads";
 
 if (!process.argv[2]) throw new Error("Specify a file to read");
 
@@ -6,61 +8,24 @@ const FILE_PATH = process.argv[2];
 
 if (!existsSync(FILE_PATH)) throw new Error("File not found.");
 
-const HIGH_WATER_MARK = 500 * 1024 * 1024; // 256 KB per chunk
+const HIGH_WATER_MARK = 100 * 1024 * 1024; // 256 KB per chunk
 const WEATHER_STATIONS = {};
 
+const start = new EventEmitter();
 const stream = createReadStream(FILE_PATH, { encoding: "utf-8", highWaterMark: HIGH_WATER_MARK });
-
-let leftover = "";
+const TASKS = [];
 
 console.time("");
 
 // ugly but performant solution
-stream.on("data", (data) => {
-     // append any leftover to data
-     if (leftover) data = leftover + data;
-
-     let newLineIndex = data.indexOf("\n");
-
-     while (newLineIndex > -1) {
-          const nextNewLineIndex = data.indexOf("\n", newLineIndex + 1);
-
-          const line = data.slice(newLineIndex + 1, nextNewLineIndex);
-
-          // do the line parsing. indexOf is twice as fast than string.split()
-          const colonIndex = line.indexOf(":");
-          const stationName = line.slice(0, colonIndex);
-          const temperature = Number(line.slice(colonIndex + 1));
-
-          const station = WEATHER_STATIONS[stationName];
-          if (!station) {
-               WEATHER_STATIONS[stationName] = {
-                    min: temperature,
-                    max: temperature,
-                    total: temperature,
-                    count: 1
-               };
-               continue;
-          }
-          // update min max temp, total and count
-          station.min = station.min > temperature ? temperature : station.min;
-          station.max = station.max < temperature ? temperature : station.max;
-          station.total = station.total + temperature;
-          station.count++;
-
-          // this was the final incomplete line, so store it in the leftover and break out of the loop
-          if (newLineIndex === -1) {
-               leftover = line;
-               return;
-          }
-
-          // assign the next index of "\n" as the current index to get the next line in the next iteration
-          newLineIndex = nextNewLineIndex;
-     }
+stream.on("data", async (data) => {
+     const parse = await spawn(new Worker("./worker"));
+     TASKS.push(parse(data));
 });
 
-stream.on("end", () => {
-     console.timeEnd("");
+stream.on("end", async () => {
+     console.log("file read completely.");
+     start.emit("start");
      return;
      // sort alphabetically
      const finalArray = Object.entries(WEATHER_STATIONS).sort(([stationA], [stationB]) => {
@@ -78,4 +43,13 @@ stream.on("end", () => {
           // Abha=-23.0/18.0/59.2
           console.log(`${station}=${data.min}/${(data.total / data.count).toFixed(2)}/${data.max}`);
      }
+});
+
+start.on("start", async () => {
+     console.log("started parsing for results.");
+     setTimeout(async () => {
+          await Promise.all(TASKS);
+          console.timeEnd("");
+          process.exit(0);
+     }, 2000);
 });

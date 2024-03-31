@@ -20,7 +20,7 @@ const rowData = readFileSync("./data/weather_stations.txt", { encoding: "utf-8" 
      .map((string) => string.split(SEPERATOR));
 console.timeEnd("Reading file");
 
-let FINAL_DATA = [];
+let FINAL_DATA = "";
 
 const writeStream = createWriteStream(`./data/${argv[2]}.txt`, { flags: "a" });
 
@@ -29,16 +29,16 @@ console.time("Creating and writing data");
 for (let i = 1; i <= COUNT; i++) {
      const randomIndex = getRandomInt(0, rowData.length - 1);
      const randomTemp = getRandomFloat(TEMP.MIN, TEMP.MAX);
-     FINAL_DATA.push(`${rowData[randomIndex][0]}${SEPERATOR}${randomTemp}`);
+     FINAL_DATA += `${rowData[randomIndex][0]}${SEPERATOR}${randomTemp}\n`;
 
      if (i % CHUNK_LIMIT === 0 || i === COUNT) {
           const chunk = i % 1_000_000 === 0 ? i / 1_000_000 : "Final";
 
           console.time(`Chunk ${chunk}`);
-          await write(writeStream, FINAL_DATA.join("\n") + "\n");
+          await write(writeStream, FINAL_DATA);
           console.timeEnd(`Chunk ${chunk}`);
 
-          FINAL_DATA = [];
+          FINAL_DATA = "";
      }
 }
 console.timeEnd("Creating and writing data");

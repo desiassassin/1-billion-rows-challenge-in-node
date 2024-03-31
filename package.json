@@ -9,5 +9,8 @@
      "type": "module",
      "keywords": [],
      "author": "",
-     "license": "ISC"
+     "license": "ISC",
+     "dependencies": {
+          "threads": "^1.7.0"
+     }
 }
