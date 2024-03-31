@@ -1,13 +1,12 @@
-import { argv } from "process";
 import { createReadStream, existsSync } from "fs";
 
-if (!argv[2]) throw new Error("Specify a file to read");
+if (!process.argv[2]) throw new Error("Specify a file to read");
 
-const FILE_PATH = argv[2];
+const FILE_PATH = process.argv[2];
 
 if (!existsSync(FILE_PATH)) throw new Error("File not found.");
 
-const HIGH_WATER_MARK = 0.25 * 1024 * 1024; // 256 KB per chunk
+const HIGH_WATER_MARK = 500 * 1024 * 1024; // 256 KB per chunk
 const WEATHER_STATIONS = {};
 
 const stream = createReadStream(FILE_PATH, { encoding: "utf-8", highWaterMark: HIGH_WATER_MARK });
